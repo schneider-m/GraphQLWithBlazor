@@ -1,0 +1,72 @@
+﻿@page "/graphql"
+@using Blazaco.Editor
+@using global::GraphQL.Client
+@using Microsoft.AspNetCore.Blazor.Http
+@using Newtonsoft.Json.Linq
+@inject HttpClient HttpClient
+
+<div class="container">
+    <div class="input-group mb-3">
+        <div class="input-group-prepend">
+            <span class="input-group-text">GraphQL endpoint</span>
+        </div>
+        <input class="form-control" type="text" @bind="_url" placeholder="GraphQL endpoint" id="endpoint" />
+    </div>
+
+    <div class="d-flex mb-3">
+        <MonacoEditor @ref="_queryEditor" Model="_queryEditorModel" />
+        <MonacoEditor @ref="_responseEditor" Model="_responseEditorModel" />
+    </div>
+    <button class="btn btn-primary" @onclick="PerformQuery">Query</button>
+    <button class="btn btn-info" @onclick="SetExampleValues">Example query</button>
+</div>
+
+@code
+{
+    private string _url;
+
+    private EditorModel _queryEditorModel = new EditorModel();
+    private EditorModel _responseEditorModel = new EditorModel();
+
+    private MonacoEditor _queryEditor;
+    private MonacoEditor _responseEditor;
+
+    private const string ExampleUrl = "https://api.graphcms.com/simple/v1/swapi";
+    private const string ExampleQuery = @"
+{
+  Starship(name: ""Millennium Falcon"") {
+    name
+    hyperdriveRating
+    pilots(orderBy: height_DESC) {
+      name
+      height
+      homeworld {
+        name
+      }
+    }
+  }
+}";
+
+    private static readonly GraphQLClientOptions options = new GraphQLClientOptions
+    {
+        // workaround, see https://github.com/aspnet/AspNetCore/issues/9125#issuecomment-498172207
+        HttpMessageHandler = new WebAssemblyHttpMessageHandler()
+    };
+
+    private async Task PerformQuery()
+    {
+        var query = await _queryEditor.GetValue();
+        using (var client = new GraphQLClient(_url, options))
+        {
+            var response = await client.PostQueryAsync(query);
+            var responseData = (JToken)response.Data;
+            await _responseEditor.SetValue(responseData.ToString());
+        }
+    }
+
+    private async Task SetExampleValues()
+    {
+        _url = ExampleUrl;
+        await _queryEditor.SetValue(ExampleQuery);
+    }
+}
